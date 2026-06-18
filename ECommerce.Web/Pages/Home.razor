@@ -1,0 +1,260 @@
+﻿@page "/"
+@inject HttpClient Http
+@inject NavigationManager NavManager
+@using System.Threading
+@using Microsoft.AspNetCore.Components
+
+<div class="container mt-4" style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;">
+    <div class="text-center mb-5">
+        <h2 class="display-5 fw-bold text-primary">🛒 E-Commerce Microservices Dashboard</h2>
+        <p class="text-muted">Saga Orchestration & CQRS Read-Model Visualizer</p>
+    </div>
+
+    @if (!string.IsNullOrEmpty(errorMessage))
+    {
+        <div class="alert alert-danger shadow-sm mb-4 border-start border-danger border-4 animate-fade-in" role="alert">
+            <h5 class="alert-heading fw-bold mb-1">⚠️ სისტემური ხარვეზი</h5>
+            <p class="mb-0">@errorMessage</p>
+        </div>
+    }
+
+    <div class="row g-4">
+        <div class="col-md-5">
+            <div class="card shadow-sm border-0 p-4 bg-light">
+                <h4 class="mb-4 text-secondary fw-semibold">ახალი შეკვეთის განთავსება</h4>
+
+                <div class="mb-3">
+                    <label class="form-label fw-bold">პროდუქტის დასახელება</label>
+                    <select class="form-select" @bind="productId">
+                        <option value="iphone_15">iPhone 15 Pro Max</option>
+                        <option value="macbook_m3">MacBook Pro M3</option>
+                        <option value="bad_product">უხარისხო პროდუქტი (საწყობის ჩავარდნის ტესტი)</option>
+                    </select>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label fw-bold">რაოდენობა</label>
+                    <input type="number" class="form-control" @bind="quantity" min="1" />
+                </div>
+
+                <div class="mb-4">
+                    <label class="form-label fw-bold">ფასი (GEL)</label>
+                    <select class="form-select" @bind="price">
+                        <option value="1200">1200 GEL (წარმატებული ქეისი)</option>
+                        <option value="999">999 GEL (გადახდის ჩავარდნის ტესტი - საგას კომპენსაცია)</option>
+                    </select>
+                </div>
+
+                <button class="btn btn-primary w-100 py-2.5 fw-bold" @onclick="() => PlaceOrder()" disabled="@isProcessing">
+                    @if (isProcessing)
+                    {
+                        <span class="spinner-border spinner-border-sm me-2"></span>
+                        @("მუშავდება...")
+                    }
+                    else
+                    {
+                        @("შეკვეთის გაგზავნა 🚀")
+                    }
+                </button>
+            </div>
+        </div>
+
+        <div class="col-md-7">
+            <div class="card shadow-sm border-0 p-4" style="min-height: 380px;">
+                <h4 class="mb-4 text-secondary fw-semibold d-flex justify-content-between align-items-center">
+                    ივენთების მუშაობის პროცესი
+                    @if (pollingActive)
+                    {
+                        <span class="badge bg-success animate-pulse" style="font-size: 11px;">Live Polling</span>
+                    }
+                </h4>
+
+                @if (!string.IsNullOrEmpty(currentOrderId))
+                {
+                    <div class="alert alert-info py-2 mb-3" style="font-size: 13px;">
+                        <strong>Order ID:</strong> @currentOrderId
+                    </div>
+                }
+
+                <div class="timeline">
+                    @if (logs.Count == 0 && !isProcessing && string.IsNullOrEmpty(errorMessage))
+                    {
+                        <div class="text-center text-muted my-5">
+                            <i class="bi bi-info-circle display-6 d-block mb-2"></i>
+                            განათავსეთ შეკვეთა ივენთების ჯაჭვის სანახავად...
+                        </div>
+                    }
+                    else
+                    {
+                        @foreach (var log in logs.OrderBy(l => l.Timestamp))
+                        {
+                            var alertClass = log.Message.Contains("წარმატებით") || log.Message.Contains("დასრულებულია") ? "border-success bg-success bg-opacity-10 text-success" :
+                            log.Message.Contains("ჩავარდა") || log.Message.Contains("შეცდომა") ? "border-danger bg-danger bg-opacity-10 text-danger" :
+                            "border-info bg-info bg-opacity-10 text-dark";
+
+                            <div class="card p-3 mb-2 border-start border-4 @alertClass shadow-sm animate-fade-in">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <span class="fw-semibold">@log.Message</span>
+                                    <small class="text-muted">@log.Timestamp.ToString("HH:mm:ss.fff")</small>
+                                </div>
+                            </div>
+                        }
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter]
+    [SupplyParameterFromQuery(Name = "productId")]
+    public string? QueryProductId { get; set; }
+
+    [Parameter]
+    [SupplyParameterFromQuery(Name = "price")]
+    public decimal? QueryPrice { get; set; }
+
+    private string productId = "iphone_15";
+    private int quantity = 1;
+    private decimal price = 1200;
+    private bool isProcessing = false;
+    private bool pollingActive = false;
+    private string currentOrderId = "";
+    private string errorMessage = "";
+    private List<NotificationLogDto> logs = new();
+    private CancellationTokenSource? cts;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (!string.IsNullOrEmpty(QueryProductId)) productId = QueryProductId;
+        if (QueryPrice.HasValue) price = QueryPrice.Value;
+
+        if (!string.IsNullOrEmpty(QueryProductId))
+        {
+            var cleanUri = NavManager.ToAbsoluteUri(NavManager.Uri).GetLeftPart(UriPartial.Path);
+            NavManager.NavigateTo(cleanUri, replace: true);
+            await PlaceOrder();
+        }
+    }
+
+    private async Task PlaceOrder()
+    {
+        isProcessing = true;
+        pollingActive = false;
+        errorMessage = "";
+        logs.Clear();
+        cts?.Cancel();
+        cts = new CancellationTokenSource();
+
+        try
+        {
+            var payload = new { ProductId = productId, Quantity = quantity, Price = price };
+
+            var response = await Http.PostAsJsonAsync("/api/orders", payload);
+
+            if (response.IsSuccessStatusCode)
+            {
+                var result = await response.Content.ReadFromJsonAsync<OrderResponseDto>();
+                if (result != null)
+                {
+                    currentOrderId = result.OrderId;
+                    pollingActive = true;
+                    _ = StartPolling(currentOrderId, cts.Token);
+                }
+            }
+            else
+            {
+                errorMessage = "შეკვეთის გაგზავნა ვერ მოხერხდა. სერვერმა დააბრუნა შეცდომა.";
+            }
+        }
+        catch (HttpRequestException ex)
+        {
+            errorMessage = "API Gateway-სთან კავშირი ვერ ხერხდება (სერვერი მიუწვდომელია).";
+            Console.WriteLine($"Network error: {ex.Message}");
+        }
+        catch (Exception ex)
+        {
+            errorMessage = "დაფიქსირდა გაუთვალისწინებელი სისტემური შეცდომა.";
+            Console.WriteLine($"General error: {ex.Message}");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private async Task StartPolling(string orderId, CancellationToken token)
+    {
+        int attempts = 0;
+        while (!token.IsCancellationRequested && attempts < 20)
+        {
+            try
+            {
+                var response = await Http.GetAsync($"/api/notifications/{orderId}", token);
+
+                if (response.IsSuccessStatusCode)
+                {
+                    var rawJson = await response.Content.ReadAsStringAsync(token);
+                    if (!string.IsNullOrEmpty(rawJson) && rawJson != "[]")
+                    {
+                        var result = System.Text.Json.JsonSerializer.Deserialize<List<NotificationLogDto>>(rawJson, new System.Text.Json.JsonSerializerOptions
+                        {
+                            PropertyNameCaseInsensitive = true
+                        });
+
+                        if (result != null && result.Count > 0)
+                        {
+                            logs = result;
+                            await InvokeAsync(StateHasChanged);
+
+                            if (logs.Any(l => l.Message.Contains("დასრულებულია") || l.Message.Contains("ჩავარდა")))
+                            {
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+            catch (HttpRequestException)
+            {
+                errorMessage = "მონაცემების სინქრონიზაცია შეწყდა (კავშირი სერვერთან დაიკარგა).";
+                await InvokeAsync(StateHasChanged);
+                break;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[POLLING ERROR]: {ex.Message}");
+            }
+
+            attempts++;
+            await Task.Delay(1000, token);
+        }
+        pollingActive = false;
+        await InvokeAsync(StateHasChanged);
+    }
+
+    public class OrderResponseDto
+    {
+        [System.Text.Json.Serialization.JsonPropertyName("orderId")]
+        public string OrderId { get; set; } = string.Empty;
+
+        [System.Text.Json.Serialization.JsonPropertyName("status")]
+        public string Status { get; set; } = string.Empty;
+    }
+
+    public class NotificationLogDto
+    {
+        [System.Text.Json.Serialization.JsonPropertyName("id")]
+        public string Id { get; set; } = string.Empty;
+
+        [System.Text.Json.Serialization.JsonPropertyName("orderId")]
+        public string OrderId { get; set; } = string.Empty;
+
+        [System.Text.Json.Serialization.JsonPropertyName("message")]
+        public string Message { get; set; } = string.Empty;
+
+        [System.Text.Json.Serialization.JsonPropertyName("timestamp")]
+        public DateTime Timestamp { get; set; }
+    }
+}

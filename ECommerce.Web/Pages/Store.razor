@@ -1,0 +1,60 @@
+﻿@page "/store"
+@inject NavigationManager NavManager
+
+<div class="container mt-4" style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;">
+    <div class="text-center mb-5">
+        <h2 class="display-5 fw-bold text-success">🛒 ონლაინ მაღაზიის ინტერფეისი</h2>
+        <p class="text-muted">აირჩიეთ სასურველი პროდუქტი შეკვეთის იმიტაციისთვის</p>
+    </div>
+
+    <div class="row row-cols-1 row-cols-md-3 g-4">
+        <div class="col">
+            <div class="card h-100 shadow-sm border-0">
+                <div class="card-body text-center p-4">
+                    <div class="display-4 mb-3">📱</div>
+                    <h5 class="card-title fw-bold">iPhone 15 Pro Max</h5>
+                    <p class="card-text text-muted">ტესტური პროდუქტი წარმატებული Saga ორკესტრაციის საჩვენებლად.</p>
+                    <h4 class="text-primary fw-bold my-3">1200 GEL</h4>
+                    <button class="btn btn-success w-100 py-2 fw-bold" @onclick='() => BuyProduct("iphone_15", 1200)'>
+                        ყიდვა 🚀
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div class="col">
+            <div class="card h-100 shadow-sm border-0">
+                <div class="card-body text-center p-4">
+                    <div class="display-4 mb-3">💻</div>
+                    <h5 class="card-title fw-bold">MacBook Pro M3</h5>
+                    <p class="card-text text-muted">სტანდარტული პროდუქტი სისტემის გამტარუნარიანობის ტესტისთვის.</p>
+                    <h4 class="text-primary fw-bold my-3">1200 GEL</h4>
+                    <button class="btn btn-success w-100 py-2 fw-bold" @onclick='() => BuyProduct("macbook_m3", 1200)'>
+                        ყიდვა 🚀
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div class="col">
+            <div class="card h-100 shadow-sm border-danger border-opacity-25">
+                <div class="card-body text-center p-4">
+                    <div class="display-4 mb-3">⚠️</div>
+                    <h5 class="card-title fw-bold text-danger">უხარისხო პროდუქტი</h5>
+                    <p class="card-text text-muted">ტესტური ქეისი. გამოიწვევს გადახდის ჩავარდნას და საგას კომპენსაციას.</p>
+                    <h4 class="text-danger fw-bold my-3">999 GEL</h4>
+                    <button class="btn btn-danger w-100 py-2 fw-bold" @onclick='() => BuyProduct("bad_product", 999)'>
+                        ტესტირება (ჩავარდნა) 🛠️
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    private void BuyProduct(string prodId, decimal priceValue)
+    {
+        NavManager.NavigateTo($"/?productId={prodId}&price={priceValue}");
+    }
+}
