@@ -38,6 +38,7 @@ builder.Services.AddMassTransit(x =>
     x.AddConsumer<InventoryReservedConsumer>();
     x.AddConsumer<PaymentSuccessConsumer>();
     x.AddConsumer<PaymentFailedConsumer>();
+    x.AddConsumer<InventoryReservationFailedConsumer>();
 
     x.UsingRabbitMq((context, cfg) =>
     {
@@ -53,6 +54,7 @@ builder.Services.AddMassTransit(x =>
             e.ConfigureConsumer<InventoryReservedConsumer>(context);
             e.ConfigureConsumer<PaymentSuccessConsumer>(context);
             e.ConfigureConsumer<PaymentFailedConsumer>(context);
+            e.ConfigureConsumer<InventoryReservationFailedConsumer>(context);
         });
     });
 });

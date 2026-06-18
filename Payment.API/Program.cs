@@ -1,36 +1,36 @@
+using MassTransit;
+using Payment.API.Consumers;
+using Payment.API.Validators;
 
-namespace Payment.API
+Environment.SetEnvironmentVariable("ASPNETCORE_URLS", "http://localhost:5003");
+
+var builder = WebApplication.CreateBuilder(args);
+
+var rabbitHost = builder.Configuration["RabbitMq:Host"] ?? "localhost";
+var rabbitUser = builder.Configuration["RabbitMq:Username"] ?? "guest";
+var rabbitPass = builder.Configuration["RabbitMq:Password"] ?? "guest";
+
+builder.Services.AddSingleton<IPaymentValidator, DefaultPaymentValidator>();
+
+builder.Services.AddMassTransit(x =>
 {
-    public class Program
+    x.AddConsumer<ProcessPaymentConsumer>();
+
+    x.UsingRabbitMq((context, cfg) =>
     {
-        public static void Main(string[] args)
+        cfg.Host(rabbitHost, "/", h =>
         {
-            var builder = WebApplication.CreateBuilder(args);
+            h.Username(rabbitUser);
+            h.Password(rabbitPass);
+        });
 
-            // Add services to the container.
+        cfg.ReceiveEndpoint("payment-queue", e =>
+        {
+            e.ConfigureConsumer<ProcessPaymentConsumer>(context);
+        });
+    });
+});
 
-            builder.Services.AddControllers();
-            // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
-            builder.Services.AddEndpointsApiExplorer();
-            builder.Services.AddSwaggerGen();
+var app = builder.Build();
 
-            var app = builder.Build();
-
-            // Configure the HTTP request pipeline.
-            if (app.Environment.IsDevelopment())
-            {
-                app.UseSwagger();
-                app.UseSwaggerUI();
-            }
-
-            app.UseHttpsRedirection();
-
-            app.UseAuthorization();
-
-
-            app.MapControllers();
-
-            app.Run();
-        }
-    }
-}
+app.Run();
