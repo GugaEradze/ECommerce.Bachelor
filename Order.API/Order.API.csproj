@@ -7,6 +7,9 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="Marten" Version="8.37.1" />
+    <PackageReference Include="MassTransit.Marten" Version="9.1.2" />
+    <PackageReference Include="MassTransit.RabbitMQ" Version="9.1.2" />
     <PackageReference Include="Swashbuckle.AspNetCore" Version="6.6.2" />
   </ItemGroup>
 
