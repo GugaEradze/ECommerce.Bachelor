@@ -13,6 +13,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Order.API", "Order.API\Orde
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Payment.API", "Payment.API\Payment.API.csproj", "{1BB581A9-9F0C-4169-A8A4-B0D81B79C3F1}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ApiGateway.Yarp", "ApiGateway.Yarp\ApiGateway.Yarp.csproj", "{2DE8E124-EED5-4A7E-8ED3-A8EE185E9D38}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -39,6 +41,10 @@ Global
 		{1BB581A9-9F0C-4169-A8A4-B0D81B79C3F1}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{1BB581A9-9F0C-4169-A8A4-B0D81B79C3F1}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{1BB581A9-9F0C-4169-A8A4-B0D81B79C3F1}.Release|Any CPU.Build.0 = Release|Any CPU
+		{2DE8E124-EED5-4A7E-8ED3-A8EE185E9D38}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{2DE8E124-EED5-4A7E-8ED3-A8EE185E9D38}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{2DE8E124-EED5-4A7E-8ED3-A8EE185E9D38}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{2DE8E124-EED5-4A7E-8ED3-A8EE185E9D38}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
