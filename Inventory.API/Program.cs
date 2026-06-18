@@ -1,36 +1,64 @@
+using MassTransit;
+using Inventory.API.Consumers;
+using Inventory.API.Services;
+using Inventory.API.Protos;
+using Grpc.Core;
 
-namespace Inventory.API
+Environment.SetEnvironmentVariable("ASPNETCORE_URLS", "http://localhost:5002");
+
+var builder = WebApplication.CreateBuilder(args);
+
+var rabbitHost = builder.Configuration["RabbitMq:Host"] ?? "localhost";
+var rabbitUser = builder.Configuration["RabbitMq:Username"] ?? "guest";
+var rabbitPass = builder.Configuration["RabbitMq:Password"] ?? "guest";
+
+builder.Services.AddGrpc();
+
+builder.Services.AddSingleton<IStockChecker, DefaultStockChecker>();
+
+builder.Services.AddMassTransit(x =>
 {
-    public class Program
+    x.AddConsumer<ReserveInventoryConsumer>();
+
+    x.UsingRabbitMq((context, cfg) =>
     {
-        public static void Main(string[] args)
+        cfg.Host(rabbitHost, "/", h =>
         {
-            var builder = WebApplication.CreateBuilder(args);
+            h.Username(rabbitUser);
+            h.Password(rabbitPass);
+        });
 
-            // Add services to the container.
+        cfg.ReceiveEndpoint("inventory-reservation-queue", e =>
+        {
+            e.ConfigureConsumer<ReserveInventoryConsumer>(context);
+        });
+    });
+});
 
-            builder.Services.AddControllers();
-            // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
-            builder.Services.AddEndpointsApiExplorer();
-            builder.Services.AddSwaggerGen();
+var app = builder.Build();
 
-            var app = builder.Build();
+app.MapGet("/api/inventory/check", (string productId, int quantity, IStockChecker stockChecker) =>
+{
+    bool isAvailable = stockChecker.IsProductAvailable(productId, quantity);
+    return Results.Ok(new { isAvailable });
+});
 
-            // Configure the HTTP request pipeline.
-            if (app.Environment.IsDevelopment())
-            {
-                app.UseSwagger();
-                app.UseSwaggerUI();
-            }
+app.MapGrpcService<InventoryGrpcService>();
 
-            app.UseHttpsRedirection();
+app.Run();
 
-            app.UseAuthorization();
+public class InventoryGrpcService : InventoryGrpc.InventoryGrpcBase
+{
+    private readonly IStockChecker _stockChecker;
 
+    public InventoryGrpcService(IStockChecker stockChecker)
+    {
+        _stockChecker = stockChecker;
+    }
 
-            app.MapControllers();
-
-            app.Run();
-        }
+    public override Task<StockResponse> CheckStock(StockRequest request, ServerCallContext context)
+    {
+        bool isAvailable = _stockChecker.IsProductAvailable(request.ProductId, request.Quantity);
+        return Task.FromResult(new StockResponse { IsAvailable = isAvailable });
     }
 }
