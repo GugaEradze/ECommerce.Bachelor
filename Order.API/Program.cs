@@ -1,36 +1,63 @@
+﻿using MassTransit;
+using Marten;
+using ECommerce.Shared;
+using Microsoft.AspNetCore.Mvc;
+using Order.API.StateMachines; 
+using Order.API.Dtos;          
 
-namespace Order.API
+Environment.SetEnvironmentVariable("ASPNETCORE_URLS", "http://localhost:5001");
+
+var builder = WebApplication.CreateBuilder(args);
+
+var dbConnectionString = builder.Configuration.GetConnectionString("OrderDatabase")
+    ?? throw new InvalidOperationException("Postgres პაროლები ვერ მოიძებნა!");
+
+var rabbitHost = builder.Configuration["RabbitMq:Host"] ?? "localhost";
+var rabbitUser = builder.Configuration["RabbitMq:Username"] ?? "guest";
+var rabbitPass = builder.Configuration["RabbitMq:Password"] ?? "guest";
+
+builder.Services.AddMarten(options =>
 {
-    public class Program
+    options.Connection(dbConnectionString);
+});
+
+builder.Services.AddMassTransit(x =>
+{
+    x.AddSagaStateMachine<OrderStateMachine, OrderSagaState>()
+        .MartenRepository();
+
+    x.UsingRabbitMq((context, cfg) =>
     {
-        public static void Main(string[] args)
+        cfg.Host(rabbitHost, "/", h =>
         {
-            var builder = WebApplication.CreateBuilder(args);
+            h.Username(rabbitUser);
+            h.Password(rabbitPass);
+        });
 
-            // Add services to the container.
+        cfg.ConfigureEndpoints(context);
+    });
+});
 
-            builder.Services.AddControllers();
-            // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
-            builder.Services.AddEndpointsApiExplorer();
-            builder.Services.AddSwaggerGen();
+var app = builder.Build();
 
-            var app = builder.Build();
+app.MapPost("/api/orders", async (IDocumentSession session, IPublishEndpoint publishEndpoint, [FromBody] CreateOrderDto dto) =>
+{
+    var orderId = Guid.NewGuid();
 
-            // Configure the HTTP request pipeline.
-            if (app.Environment.IsDevelopment())
-            {
-                app.UseSwagger();
-                app.UseSwaggerUI();
-            }
+    var orderCreatedEvent = new OrderCreatedEvent
+    {
+        OrderId = orderId,
+        ProductId = dto.ProductId,
+        Quantity = dto.Quantity,
+        Price = dto.Price
+    };
 
-            app.UseHttpsRedirection();
+    session.Events.StartStream<OrderSagaState>(orderId, orderCreatedEvent);
+    await session.SaveChangesAsync();
 
-            app.UseAuthorization();
+    await publishEndpoint.Publish(orderCreatedEvent);
 
+    return Results.Accepted($"/api/orders/{orderId}", new { orderId, status = "შეკვეთის დამუშავება დაიწყო..." });
+});
 
-            app.MapControllers();
-
-            app.Run();
-        }
-    }
-}
+app.Run();
